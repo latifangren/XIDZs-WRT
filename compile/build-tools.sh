@@ -413,8 +413,9 @@ run_tunnel() {
         chmod 755 "files/etc/openclash/core/clash_meta" "files/etc/openclash/Country.mmdb" "files/etc/openclash/GeoIP.dat" "files/etc/openclash/GeoSite.dat"
         sed -i "/# Tunnel/a \    ln -sf /etc/openclash/history/xidzs.db /etc/openclash/cache.db\n    ln -sf /etc/openclash/core/clash_meta /etc/openclash/clash" "files/etc/uci-defaults/99-init-settings.sh"
     }
+    
     setup_passwall() {
-        # Dynamic versioning
+        # Resolve dynamic versioning based on OS
         local pw_search="luci-app-passwall"
         if [[ "${VEROP:-}" == "25.12" ]]; then
             pw_search="25\.12(%2B|\+)_luci-app-passwall"
@@ -424,6 +425,7 @@ run_tunnel() {
         
         local pw_ipk=$(curl -s "https://api.github.com/repos/Openwrt-Passwall/openwrt-passwall/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${pw_search}.*\.${pkg_ext}$" | head -n 1)
         
+        # Fallback to general release
         [[ -z "$pw_ipk" ]] && pw_ipk=$(curl -s "https://api.github.com/repos/Openwrt-Passwall/openwrt-passwall/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "luci-app-passwall.*\.${pkg_ext}$" | head -n 1)
         
         [[ -z "$pw_ipk" ]] && { log "ERROR" "Failed to fetch Passwall URL"; return 1; }
@@ -440,6 +442,7 @@ run_tunnel() {
         )
         download_packages pw_deps
     }
+    
     setup_nikki() {
         local nikki_url=$(curl -s "https://api.github.com/repos/Yogxx/OpenWrt-nikkiku/releases" | jq -r '.[0].assets[].browser_download_url' | grep -oE "https.*nikki_${ARCH_3}-openwrt-${VEROP:-24.10}.*\.tar.gz" | head -n 1)
         if [[ "${VEROP:-}" == "23.05" ]]; then 
@@ -452,8 +455,8 @@ run_tunnel() {
         tar -xzvf "packages/${n_file}" -C "packages" && rm -f "packages/${n_file}"
         chmod 755 "files/etc/nikki/run/Country.mmdb" "files/etc/nikki/run/GeoIP.dat" "files/etc/nikki/run/GeoSite.dat"
     }
-    setup_fusiontunx() {
     
+    setup_fusiontunx() {
         local ft_prefix="fusiontunx_"
         [[ "$pkg_ext" == "apk" ]] && ft_prefix="fusiontunx-"
         
@@ -472,6 +475,7 @@ run_tunnel() {
         
         ariadl "${ft_core}" "packages/${core_name}"
     }
+    
     setup_qtun() {
         local qtun_search="luci-app-qtun_.*_${ARCH_3}\.${pkg_ext}$"
         local qtun_url=$(curl -s "https://api.github.com/repos/QcomWrt/luci-app-qtun/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${qtun_search}" | head -n 1)
@@ -492,6 +496,7 @@ run_tunnel() {
         
         ariadl "${qtun_url}" "packages/${clean_name}"
     }
+    
     setup_clashoo() {
         local co_prefix="clashoo_"
         [[ "$pkg_ext" == "apk" ]] && co_prefix="clashoo-"
@@ -521,6 +526,50 @@ run_tunnel() {
         ariadl "${co_core}" "packages/${core_name}"
     }
     
+    setup_passwallssh() {
+        # Extract major OS version (default: 24)
+        local ver_major="${VEROP%%.*}"
+        [[ -z "$ver_major" ]] && ver_major="24"
+        
+        # Override for v23.05 compatibility
+        if [[ "${VEROP:-}" == "23.05" ]]; then
+            ver_major="24"
+        fi
+        
+        # Strict ARCH_3 regex to prevent architecture mismatch
+        local pwssh_search="passwall-ssh_${ver_major}_[0-9\.]+_${ARCH_3}\.${pkg_ext}$"
+        local pwssh_url=$(curl -s "https://api.github.com/repos/avidemx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${pwssh_search}" | head -n 1)
+        
+        # Fallback to generic version format if strict search fails
+        [[ -z "$pwssh_url" ]] && pwssh_url=$(curl -s "https://api.github.com/repos/avidemx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "passwall-ssh_[0-9]+_[0-9\.]+_${ARCH_3}\.${pkg_ext}$" | head -n 1)
+        
+        [[ -z "$pwssh_url" ]] && { log "ERROR" "Failed to fetch Passwall-SSH URL"; return 1; }
+        
+        local raw_name=$(basename "${pwssh_url}")
+        local clean_name="${raw_name}"
+        
+        # Normalize filename
+        if [[ "$raw_name" =~ passwall-ssh_[0-9]+_([0-9\.]+)_${ARCH_3}\.(${pkg_ext})$ ]]; then
+            local version="${BASH_REMATCH[1]}"
+            if [[ "$pkg_ext" == "apk" ]]; then
+                clean_name="passwall-ssh-${version}-r1.apk"
+            else
+                clean_name="passwall-ssh-${version}-1.ipk"
+            fi
+        else
+            # Fallback string parsing if regex matching fails
+            clean_name=$(echo "$raw_name" | sed -E "s/_[0-9]+_/-/" | sed -E "s/_${ARCH_3}//")
+            if [[ "$pkg_ext" == "apk" ]]; then
+                clean_name="${clean_name/_/-}"
+                [[ ! "$clean_name" =~ -r[0-9]+\.apk$ ]] && clean_name="${clean_name/.apk/-r1.apk}"
+            else
+                [[ ! "$clean_name" =~ -[0-9]+\.ipk$ ]] && clean_name="${clean_name/.ipk/-1.ipk}"
+            fi
+        fi
+        
+        ariadl "${pwssh_url}" "packages/${clean_name}"
+    }
+    
     clean_oc() { rm -rf "files/etc/openclash"; }
     clean_pw() { rm -f "files/etc/config/passwall"; }
     clean_nk() { rm -rf "files/etc/nikki" "files/etc/config/nikki"; }
@@ -534,6 +583,7 @@ run_tunnel() {
         fusiontunx) setup_fusiontunx; clean_oc; clean_pw; clean_nk; clean_co ;;
         passwall) setup_passwall; clean_oc; clean_nk; clean_ft; clean_co ;;
         clashoo) setup_clashoo; clean_oc; clean_pw; clean_nk; clean_ft ;;
+        passwallssh) setup_passwallssh; clean_oc; clean_pw; clean_nk; clean_ft; clean_co ;;
         nikki-passwall) setup_nikki; setup_passwall; clean_oc; clean_ft; clean_co ;;
         nikki-fusiontunx) setup_nikki; setup_fusiontunx; clean_oc; clean_pw; clean_co ;;
         nikki-qtun) setup_nikki; setup_qtun; clean_oc; clean_pw; clean_ft; clean_co ;;
@@ -548,17 +598,19 @@ run_tunnel() {
         clashoo-fusiontunx) setup_clashoo; setup_fusiontunx; clean_oc; clean_pw; clean_nk ;;
         openclash-clashoo) setup_openclash; setup_clashoo; clean_pw; clean_nk; clean_ft ;;
         openclash-nikki-passwall) setup_openclash; setup_nikki; setup_passwall; clean_ft; clean_co ;;
+        openclash-passwallssh) setup_openclash; setup_passwallssh; clean_pw; clean_nk; clean_ft; clean_co ;;
+        nikki-passwallssh) setup_nikki; setup_passwallssh; clean_oc; clean_pw; clean_ft; clean_co ;;
         no-tunnel) clean_oc; clean_pw; clean_nk; clean_ft; clean_co ;;
         *) error_msg "Invalid option: ${mode}" ;;
     esac
     log "SUCCESS" "Tunnel configured: ${mode}"
     
-    # Inspect downloaded packages
+    # Audit downloaded packages
     log "INFO" "Inspecting packages directory contents:"
     [ -d "packages" ] && ls -lh packages/ 2>/dev/null || log "WARN" "Packages directory not found"
 }
 
-# compilation using imagebuilder
+# ImageBuilder compilation routine
 run_makeimage() {
     local target_profile="$1"
     local tunnel_option="${2:-}"
@@ -569,20 +621,20 @@ run_makeimage() {
     
     log "INFO" "Initiating build: $target_profile | Tunnel: ${tunnel_option:-no-tunnel}"
     
-    # base system and Luci
+    # Base system & LuCI GUI
     PACKAGES+=" dnsmasq-full libc block-mount zram-swap zoneinfo-core zoneinfo-asia bash screen uhttpd uhttpd-mod-ubus \
     luci luci-ssl luci-base luci-compat luci-mod-admin-full luci-mod-network \
     luci-mod-system luci-mod-status luci-app-firewall luci-app-opkg openssh-sftp-server adb curl wget-ssl \
     httping htop jq tar unzip coreutils-base64 coreutils-sleep coreutils-stat "
     
-    # network and driver modems
+    # Networking & USB modem drivers
     PACKAGES+=" kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-mii kmod-usb-net kmod-usb-wdm kmod-usb-net-rndis \
     kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm kmod-usb-net-sierrawireless kmod-usb-net-qmi-wwan kmod-usb-acm kmod-usb-net-huawei-cdc-ncm kmod-usb-net-cdc-mbim \
     kmod-usb-serial kmod-usb-serial-option kmod-usb-serial-wwan kmod-usb-serial-qualcomm kmod-usb-serial-sierrawireless modemmanager luci-proto-modemmanager \
     qmi-utils mbim-utils uqmi umbim luci-proto-ncm kmod-usb-ohci kmod-usb-uhci \
     kmod-usb2 kmod-usb-ehci kmod-usb3 usbutils usb-modeswitch kmod-nls-utf8 kmod-macvlan xmm-modem luci-proto-xmm "
     
-    # wireless drivers
+    # Wireless drivers
     if [[ "${TARGET_BUILD:-}" == "s905x-b860h" || "${TARGET_BUILD:-}" == "s905x" ]]; then
         log "INFO" "Target WIFIOFF detected: Excluding wireless drivers"
     else
@@ -594,29 +646,29 @@ run_makeimage() {
         fi
     fi
     
-    # storage + nas
+    # Storage & NAS
     local STORAGE="kmod-usb-storage luci-app-diskman kmod-usb-storage-uas ntfs-3g"
     
-    # modem rakitan + autorekonek
+    # Custom modem tools & auto-reconnect
     local MODEM="atinout sms-tool luci-app-sms-tool-js picocom minicom modemdata luci-app-modemdata luci-app-mmconfig luci-app-lite-watchdog"
     
-    # qmodem
+    # Quectel utilities
     local QMODEM="ubus-at-daemon sms-tool_q ndisc6 quectel-CM-5G-M qmodem tom_modem sms-forwarder-next luci-app-qmodem-next"
     
-    # tinyfm + php8
+    # File manager & PHP8 dependencies
     local TINYFM="php8 php8-cli php8-fastcgi php8-fpm php8-mod-session php8-mod-ctype php8-mod-fileinfo \
     php8-mod-zip php8-mod-iconv php8-mod-mbstring luci-app-tinyfm"
     
-    # monitoring statistic
+    # Network monitoring & statistics
     local STATS="vnstat2 vnstati2 luci-app-netmonitor"
     
-    # theme
+    # UI Themes
     local THEME="luci-theme-luxe luci-theme-argon luci-theme-footstrap"
     
-    # other
+    # Misc utilities
     local OTHER="luci-app-ramfree ttyd luci-app-ttyd luci-app-ttl luci-app-ipinfo luci-app-eqosplus"
     
-    # internet detector packages
+    # Internet connection detector
     local INTERNETD="internet-detector internet-detector-mod-modem-restart luci-app-internet-detector"
     if [[ "${VEROP:-}" == "25.12" ]]; then
         if [[ "$target_profile" == "rpi-5" || "$target_profile" == "rpi-2" || "$target_profile" == "rpi" || ( "$target_profile" == "generic" && "${ARCH_2:-}" == "i386" ) ]]; then
@@ -625,23 +677,23 @@ run_makeimage() {
         fi
     fi
     
-    # all variable build firmware
+    # Aggregate standard packages
     PACKAGES+=" ${STORAGE} ${MODEM} ${INTERNETD} \
     ${STATS} ${THEME} ${TINYFM} ${OTHER} "
     
-    # exclude qmodem on armv6, armv7, and 386
+    # Disable Qmodem for legacy architectures
     if [[ ! ( "${ARCH_1:-}" == "armv6" || \
               "${ARCH_1:-}" == "armv7" || \
               "${ARCH_1:-}" == "386" ) ]]; then
         PACKAGES+="" # ${QMODEM}
     fi
     
-    # packages spesific
+    # OS-specific dependencies
     if [[ "${VEROP:-}" == "23.05" || "${VEROP:-}" == "24.10" ]]; then
-        # Os 23.05.x | 24.10.x
+        # OS v23.05.x / v24.10.x
         PACKAGES+=" atc-fib-l8x0_gl atc-fib-fm350_gl luci-proto-atc tailscale luci-app-tailscale ookla-speedtest luci-app-poweroffdevice "
     else
-        # Os 25.12.x
+        # OS v25.12.x
         PACKAGES+=" atc-fib-l8x0_gl luci-proto-atc tailscale luci-app-tailscale "
     fi
     
@@ -652,8 +704,9 @@ run_makeimage() {
     local NEKO="luci-app-neko"
     local PASSWALL="chinadns-ng dns2socks tcping dns2tcp luci-app-passwall"
     local CLASHOO="clashoo luci-app-clashoo"
+    local PASSWALLSSH="passwall-ssh"
     
-    # tunnel option
+    # Inject VPN/Proxy tunnel payloads
     case "$tunnel_option" in
         openclash) PACKAGES+=" $OPENCLASH " ;;
         nikki) PACKAGES+=" $NIKKI " ;;
@@ -662,6 +715,9 @@ run_makeimage() {
         passwall) PACKAGES+=" $PASSWALL " ;;
         qtun) PACKAGES+=" $QTUN " ;;
         clashoo) PACKAGES+=" $CLASHOO " ;;
+        passwallssh) PACKAGES+=" $PASSWALLSSH " ;;
+        openclash-passwallssh) PACKAGES+=" $OPENCLASH $PASSWALLSSH " ;;
+        nikki-passwallssh) PACKAGES+=" $NIKKI $PASSWALLSSH " ;;
         nikki-passwall) PACKAGES+=" $NIKKI $PASSWALL " ;;
         nikki-fusiontunx) PACKAGES+=" $NIKKI $FUSIONTUNX " ;;
         nikki-qtun) PACKAGES+=" $NIKKI $QTUN " ;;
@@ -678,20 +734,20 @@ run_makeimage() {
         openclash-nikki-passwall) PACKAGES+=" $OPENCLASH $NIKKI $PASSWALL " ;;
     esac
     
-    # device specific packages
+    # Target-specific hardware drivers
     if [[ "$target_profile" =~ rpi-[2-5] ]]; then
         PACKAGES+=" kmod-i2c-bcm2835 i2c-tools kmod-i2c-core kmod-i2c-gpio "
     elif [[ "${ARCH_2:-}" == "x86_64" ]] || [[ "${ARCH_2:-}" == "i386" ]]; then
         PACKAGES+=" kmod-iwlwifi iw-full pciutils wireless-tools "
     fi
     
-    # builder spesific
+    # ImageBuilder-specific overrides
     if [[ "${TYPE:-}" == "OPHUB" ]] || [[ "${TYPE:-}" == "ULO" ]]; then
         PACKAGES+=" btrfs-progs kmod-fs-btrfs luci-app-amlogic "
         EXCLUDED+=" -procd-ujail "
     fi
     
-    # firmware base spesific
+    # Adjustments based on OpenWrt vs ImmortalWrt
     if [[ "${BASE:-}" == "openwrt" ]]; then
         PACKAGES+=" luci-app-temp-status "
         EXCLUDED+=" -dnsmasq "
