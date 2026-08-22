@@ -478,7 +478,7 @@ run_tunnel() {
     
     setup_qtun() {
         local qtun_search="luci-app-qtun_.*_${ARCH_3}\.${pkg_ext}$"
-        local qtun_url=$(curl -s "https://api.github.com/repos/QcomWrt/luci-app-qtun/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${qtun_search}" | head -n 1)
+        local qtun_url=$(curl -s "https://api.github.com/repos/de-quenx/luci-app-qtun/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${qtun_search}" | head -n 1)
         [[ -z "$qtun_url" ]] && { log "ERROR" "Failed to fetch Qtun URL"; return 1; }
         
         local clean_name=$(basename "${qtun_url}" | sed -E "s/_${ARCH_3}//")
@@ -538,10 +538,10 @@ run_tunnel() {
         
         # Strict ARCH_3 regex to prevent architecture mismatch
         local pwssh_search="passwall-ssh_${ver_major}_[0-9\.]+_${ARCH_3}\.${pkg_ext}$"
-        local pwssh_url=$(curl -s "https://api.github.com/repos/avidemx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${pwssh_search}" | head -n 1)
+        local pwssh_url=$(curl -s "https://api.github.com/repos/de-quenx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "${pwssh_search}" | head -n 1)
         
         # Fallback to generic version format if strict search fails
-        [[ -z "$pwssh_url" ]] && pwssh_url=$(curl -s "https://api.github.com/repos/avidemx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "passwall-ssh_[0-9]+_[0-9\.]+_${ARCH_3}\.${pkg_ext}$" | head -n 1)
+        [[ -z "$pwssh_url" ]] && pwssh_url=$(curl -s "https://api.github.com/repos/de-quenx/Passwall-SSH/releases/latest" | jq -r '.assets[].browser_download_url' | grep -iE "passwall-ssh_[0-9]+_[0-9\.]+_${ARCH_3}\.${pkg_ext}$" | head -n 1)
         
         [[ -z "$pwssh_url" ]] && { log "ERROR" "Failed to fetch Passwall-SSH URL"; return 1; }
         
