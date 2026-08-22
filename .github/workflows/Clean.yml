@@ -48,7 +48,10 @@ jobs:
           find . -type d \( -name "dist" -o -name "build" -o -name ".next" -o -name ".nuxt" \) -print -exec rm -rf {} + 2>/dev/null || true
 
           echo "Deleting ImageBuilder firmware compile leftovers..."
-          find / -maxdepth 6 -type d \( -name "build_dir" -o -name "staging_dir" -o -name "bin" -o -name "dl" -o -name "logs" -o -name "*imagebuilder*" -o -name "*ImageBuilder*" -o -name "openwrt-sdk*" \) -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "*/actions-runner/*" -print -exec sudo rm -rf {} + 2>/dev/null || true
+          for base in "$HOME" /opt /tmp; do
+            [ -d "$base" ] || continue
+            find "$base" -maxdepth 8 -not -path "*/actions-runner/*" -not -path "*/hostedtoolcache/*" \( -type d -name "build_dir" -o -type d -name "staging_dir" -o -type d -name "dl" -o -type d -iname "*imagebuilder*" -o -type d -iname "openwrt-sdk*" -o -type d -path "*/bin/targets" \) -print -exec sudo rm -rf {} + 2>/dev/null || true
+          done
 
           echo "Cleaning /tmp and runner temp directories..."
           sudo rm -rf /tmp/* /tmp/.[!.]* 2>/dev/null || true
@@ -66,7 +69,7 @@ jobs:
 
           echo ""
           echo "Disk usage:"
-          df -h
+          df -h || true
 
       - name: Clean Docker images, containers, and build cache
         if: ${{ inputs.clean_option == 'cache_tmp_logs' || inputs.clean_option == 'all_clean' }}
