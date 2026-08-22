@@ -1,0 +1,27 @@
+name: Auto Retry Failed Workflows
+
+on:
+  workflow_run:
+    workflows: ["Builds"]
+    types:
+      - completed
+
+jobs:
+  auto-retry:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3 }}
+    permissions:
+      actions: write
+    steps:
+      - name: Jeda waktu sebelum retry
+        run: |
+          echo "Mendeteksi kegagalan pada workflow 'Builds' (Percobaan ke-${{ github.event.workflow_run.run_attempt }})."
+          echo "Memberikan jeda 2 menit sebelum mencoba ulang untuk memulihkan koneksi atau server..."
+          sleep 120
+
+      - name: Re-run failed jobs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Jeda selesai. Memulai ulang secara otomatis hanya pada jobs yang gagal..."
+          gh run rerun ${{ github.event.workflow_run.id }} --failed
