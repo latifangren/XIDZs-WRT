@@ -233,6 +233,7 @@ run_packages() {
     
     declare -A REPOS=(
         ["OPENWRT"]="https://downloads.openwrt.org/releases/packages-${VEROP:-24.10}/${ARCH_3}"
+        ["OPENWRT24"]="https://downloads.openwrt.org/releases/packages-24.10/${ARCH_3}"
         ["IMMORTALWRT"]="https://downloads.immortalwrt.org/releases/packages-${VEROP:-24.10}/${ARCH_3}"
         ["KYARUCLOUD_IMMORTALWRT"]="https://immortalwrt.kyarucloud.moe/releases/packages-${VEROP:-24.10}/${ARCH_3}"
         ["KIDDIN9"]="${kiddin9_url}"
@@ -263,7 +264,7 @@ run_packages() {
         "luci-app-ttl|https://api.github.com/repos/de-quenx/custom-x/releases/latest"
         "luci-app-ipinfo|https://api.github.com/repos/de-quenx/luci-app-ipinfo/releases/latest"
         "luci-app-tailscale|https://api.github.com/repos/asvow/luci-app-tailscale/releases/latest"
-        "luci-app-5gmodem|https://api.github.com/repos/fildunsky/luci-app-5gmodem/releases/latest"
+        "luci-app-5gmodem-lite|https://api.github.com/repos/fildunsky/luci-app-5gmodem/releases/latest"
     )
     
     if [[ "${TYPE:-}" == "OPHUB" || "${TYPE:-}" == "ULO" ]]; then 
@@ -304,6 +305,7 @@ run_packages() {
         "luci-app-poweroffdevice|${REPOS[KIDDIN9]}"
         "ookla-speedtest|${REPOS[KIDDIN9]}"
         "luci-app-eqosplus|${REPOS[KIDDIN9]}"
+        "modemmanager-rpcd|${REPOS[OPENWRT24]}/packages"
     )
 
     log "INFO" "download core packages"
@@ -618,8 +620,8 @@ run_makeimage() {
     # Storage & NAS
     local STORAGE="kmod-usb-storage luci-app-diskman kmod-usb-storage-uas ntfs-3g"
     
-    # Custom modem tools & auto-reconnect
-    local MODEM="sms-tool luci-app-5gmodem luci-app-lite-watchdog"
+    # modem info & auto-reconnect
+    local MODEM="sms-tool luci-app-5gmodem-lite luci-app-lite-watchdog"
     
     # Quectel utilities
     local QMODEM="ubus-at-daemon sms-tool_q ndisc6 quectel-CM-5G-M qmodem tom_modem sms-forwarder-next luci-app-qmodem-next"
