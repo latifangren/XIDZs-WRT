@@ -306,6 +306,9 @@ run_packages() {
         "ookla-speedtest|${REPOS[KIDDIN9]}"
         "luci-app-eqosplus|${REPOS[KIDDIN9]}"
         "modemmanager-rpcd|${REPOS[OPENWRT24]}/packages"
+        "modemmanager|${REPOS[OPENWRT24]}/packages"
+        "libqmi|${REPOS[OPENWRT24]}/packages"
+        "libmbim|${REPOS[OPENWRT24]}/packages"
     )
 
     log "INFO" "download core packages"
