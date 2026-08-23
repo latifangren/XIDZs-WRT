@@ -119,7 +119,6 @@ misc_file_perms() {
         "files/usr/bin/x-gpio"
         "files/usr/bin/x-gpioled"
         "files/usr/bin/repair_ro"
-        "files/etc/hotplug.d/tty/25-modemmanager-tty"
     )
     for f in "${exec_files[@]}"; do [ -f "$f" ] && chmod 755 "$f"; done
     
@@ -242,14 +241,10 @@ run_packages() {
         ["OPENWRTRU"]="https://openwrt.132lan.ru/packages/${VEROP:-24.10}/packages/${ARCH_3}/modemfeed"
     )
 
-    local MODEM_REPO="${REPOS[KIDDIN9]}"
     local WATCHDOG_REPO="${REPOS[KIDDIN9]}"
-    local SMSTOOL_REPO="${REPOS[KIDDIN9]}"
     
     if [[ "${VEROP:-}" == "25.12" ]]; then
-        MODEM_REPO="${REPOS[OPENWRTRU]}"
         WATCHDOG_REPO="https://api.github.com/repos/4IceG/luci-app-lite-watchdog/releases/latest"
-        SMSTOOL_REPO="https://api.github.com/repos/4IceG/luci-app-sms-tool-js/releases/latest"
     fi
 
     # download packages for 23.05.x | 24.10.x | 25.12.x
@@ -258,15 +253,6 @@ run_packages() {
         "luci-app-ramfree|${REPOS[IMMORTALWRT]}/luci"
         "luci-app-ttyd|${REPOS[OPENWRT]}/luci"
         "luci-app-lite-watchdog|${WATCHDOG_REPO}"
-        "luci-app-mmconfig|${REPOS[OPENWRTRU]}"
-        "luci-app-modeminfo|${MODEM_REPO}"
-        "modeminfo-serial-tw|${MODEM_REPO}"
-        "modeminfo-serial-dell|${MODEM_REPO}"
-        "modeminfo-serial-sierra|${MODEM_REPO}"
-        "modeminfo-serial-xmm|${MODEM_REPO}"
-        "modeminfo-serial-fibocom|${MODEM_REPO}"
-        "atinout|${MODEM_REPO}"
-        "luci-app-sms-tool-js|${SMSTOOL_REPO}"
         "tailscale|${REPOS[OPENWRT]}/packages"
         "luci-theme-footstrap|https://api.github.com/repos/VizzleTF/luci-theme-footstrap/releases/latest"
         "luci-theme-luxe|https://api.github.com/repos/de-quenx/luci-theme-luxe/releases/latest"
@@ -277,8 +263,7 @@ run_packages() {
         "luci-app-ttl|https://api.github.com/repos/de-quenx/custom-x/releases/latest"
         "luci-app-ipinfo|https://api.github.com/repos/de-quenx/luci-app-ipinfo/releases/latest"
         "luci-app-tailscale|https://api.github.com/repos/asvow/luci-app-tailscale/releases/latest"
-        "modemdata|https://api.github.com/repos/4IceG/luci-app-modemdata/releases/latest"
-        "luci-app-modemdata|https://api.github.com/repos/4IceG/luci-app-modemdata/releases/latest"
+        "luci-app-5gmodem|https://api.github.com/repos/fildunsky/luci-app-5gmodem/releases/latest"
     )
     
     if [[ "${TYPE:-}" == "OPHUB" || "${TYPE:-}" == "ULO" ]]; then 
@@ -323,22 +308,6 @@ run_packages() {
 
     log "INFO" "download core packages"
     download_packages packages_core
-
-    # dynamic 'modeminfo' versions and clean up 'modeminfo-telegram' 
-    rm -f packages/modeminfo-telegram* 2>/dev/null || true
-    local pkg_ext=$(get_package_extension "${VEROP:-24.10}")
-    
-    # filter strictly for modeminfo, ensure version is dynamic
-    local mi_filename=$(curl -sL "${MODEM_REPO}/" | grep -oE 'href="[^"]+"' | sed 's/href="//;s/"//' | awk -F'/' '{print $NF}' | grep -E "^modeminfo[-_][0-9].*\.${pkg_ext}$" | sort -V | tail -n 1)
-    
-    if [[ -n "$mi_filename" ]]; then
-        log "INFO" "Targeting latest dynamic modeminfo: ${mi_filename}"
-        ariadl "${MODEM_REPO}/${mi_filename}" "packages/${mi_filename}"
-        # append back for end-of-function package verification
-        packages_core+=("modeminfo|${MODEM_REPO}")
-    else
-        log "WARN" "Failed to strictly fetch exact modeminfo package"
-    fi
 
     if [[ "${VEROP:-}" == "23.05" || "${VEROP:-}" == "24.10" ]]; then
         log "INFO" "OS 23.05.x | 24.10.x custom packages"
@@ -625,14 +594,14 @@ run_makeimage() {
     PACKAGES+=" dnsmasq-full libc block-mount zram-swap zoneinfo-core zoneinfo-asia bash screen uhttpd uhttpd-mod-ubus \
     luci luci-ssl luci-base luci-compat luci-mod-admin-full luci-mod-network \
     luci-mod-system luci-mod-status luci-app-firewall luci-app-opkg openssh-sftp-server adb curl wget-ssl \
-    httping htop jq tar unzip coreutils-base64 coreutils-sleep coreutils-stat "
+    httping htop jq tar unzip coreutils-base64 coreutils-sleep coreutils-stat coreutils-stty "
     
     # Networking & USB modem drivers
     PACKAGES+=" kmod-usb-net-rtl8150 kmod-usb-net-rtl8152 kmod-usb-net-asix kmod-usb-net-asix-ax88179 kmod-mii kmod-usb-net kmod-usb-wdm kmod-usb-net-rndis \
-    kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm kmod-usb-net-sierrawireless kmod-usb-net-qmi-wwan kmod-usb-acm kmod-usb-net-huawei-cdc-ncm kmod-usb-net-cdc-mbim \
-    kmod-usb-serial kmod-usb-serial-option kmod-usb-serial-wwan kmod-usb-serial-qualcomm kmod-usb-serial-sierrawireless modemmanager luci-proto-modemmanager \
-    qmi-utils mbim-utils uqmi umbim usbutils luci-proto-ncm kmod-usb-ohci kmod-usb-uhci \
-    kmod-usb2 kmod-usb-ehci kmod-usb3 usb-modeswitch xmm-modem luci-proto-xmm kmod-nls-utf8 kmod-macvlan "
+    kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm kmod-usb-net-sierrawireless kmod-usb-net-qmi-wwan kmod-usb-acm kmod-usb-net-huawei-cdc-ncm kmod-usb-net-cdc-mbim kmod-usb-serial \
+    kmod-usb-serial-option kmod-usb-serial-wwan kmod-usb-serial-qualcomm kmod-usb-serial-sierrawireless kmod-usb-ohci kmod-usb-uhci kmod-usb2 kmod-usb-ehci \
+    kmod-usb3 kmod-nls-utf8 kmod-macvlan modemmanager modemmanager-rpcd luci-proto-modemmanager comgt libqmi libmbim \
+    qmi-utils mbim-utils uqmi umbim usbutils usb-modeswitch luci-proto-ncm xmm-modem luci-proto-xmm "
     
     # Wireless drivers
     if [[ "${TARGET_BUILD:-}" == "s905x-b860h" || "${TARGET_BUILD:-}" == "s905x" ]]; then
@@ -650,7 +619,7 @@ run_makeimage() {
     local STORAGE="kmod-usb-storage luci-app-diskman kmod-usb-storage-uas ntfs-3g"
     
     # Custom modem tools & auto-reconnect
-    local MODEM="atinout sms-tool luci-app-sms-tool-js picocom minicom modemdata luci-app-modemdata luci-app-mmconfig luci-app-lite-watchdog"
+    local MODEM="sms-tool luci-app-5gmodem luci-app-lite-watchdog"
     
     # Quectel utilities
     local QMODEM="ubus-at-daemon sms-tool_q ndisc6 quectel-CM-5G-M qmodem tom_modem sms-forwarder-next luci-app-qmodem-next"
@@ -681,7 +650,7 @@ run_makeimage() {
     PACKAGES+=" ${STORAGE} ${MODEM} ${INTERNETD} \
     ${STATS} ${THEME} ${TINYFM} ${OTHER} "
     
-    # Disable Qmodem for legacy architectures
+    # Disable Qmodem for armv6, armv7, 386
     if [[ ! ( "${ARCH_1:-}" == "armv6" || \
               "${ARCH_1:-}" == "armv7" || \
               "${ARCH_1:-}" == "386" ) ]]; then
