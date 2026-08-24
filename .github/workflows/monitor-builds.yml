@@ -1,0 +1,68 @@
+name: Monitor Build Failures
+
+on:
+  workflow_run:
+    workflows: ["Build Custom Firmware Devices"]
+    types: [completed]
+
+permissions:
+  actions: write
+  issues: write
+
+jobs:
+  handle-failure:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Rerun failed jobs
+        if: ${{ github.event.workflow_run.run_attempt < 4 }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.reRunWorkflowFailedJobs({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id
+            });
+
+      - name: Collect failed jobs
+        if: ${{ github.event.workflow_run.run_attempt >= 4 }}
+        id: jobs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const { data } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id
+            });
+            const failedJobs = data.jobs
+              .filter(j => j.conclusion === 'failure')
+              .map(j => `- ${j.name} -> ${j.html_url}`)
+              .join('\n');
+            core.setOutput('failed_jobs', failedJobs || run.html_url);
+
+      - name: Create failure issue
+        if: ${{ github.event.workflow_run.run_attempt >= 4 }}
+        uses: actions/github-script@v7
+        env:
+          FAILED_JOBS: ${{ steps.jobs.outputs.failed_jobs }}
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build gagal setelah 4x percobaan - run #${run.run_number}`,
+              body: [
+                `Workflow: ${run.name}`,
+                `Branch: ${run.head_branch}`,
+                `Percobaan: ${run.run_attempt}`,
+                `Run: ${run.html_url}`,
+                '',
+                'Job yang gagal:',
+                process.env.FAILED_JOBS
+              ].join('\n'),
+              labels: ['build-failure', 'automated', 'max-retry']
+            });
