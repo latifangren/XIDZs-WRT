@@ -178,7 +178,7 @@ jobs:
           GITHUB_TOKEN: ${{ env.XIDZ_KEY }}
         run: |
           if [ "${{ inputs.tunnel }}" == "all-tunnel-v2" ]; then
-            TUNNELS=("no-tunnel" "openclash-passwallssh" "openclash-qtun" "openclash-nikki" "openclash-fusiontunx" "openclash-passwall" "openclash-clashoo")
+            TUNNELS=("no-tunnel" "openclash" "openclash-passwallssh" "openclash-qtun" "openclash-nikki" "openclash-fusiontunx" "openclash-passwall")
           elif [ "${{ inputs.tunnel }}" == "all-tunnel-v1" ]; then
             TUNNELS=("openclash" "nikki" "passwall" "qtun" "fusiontunx" "clashoo")
           fi
